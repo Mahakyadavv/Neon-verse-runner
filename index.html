@@ -8,58 +8,65 @@
   </head>
   <body>
     <script>
-      // GLOBAL SETTINGS
+      // GLOBAL VARIABLES
       let isRunning = true;
       let score = 0;
-      let gameSpeed = 0.1; // Starting speed
+      let gameSpeed = 0.15; 
 
-      // COMPONENT 1: GAME MANAGER (Brain of the game)
       AFRAME.registerComponent('game-manager', {
         init: function () {
           this.scoreEl = document.querySelector('#score-text');
           this.gameOverEl = document.querySelector('#game-over-text');
           this.timer = 0;
+          // Game start hone ke 2 second tak collision off rakhenge (Safety)
+          this.warmupTime = 0; 
         },
         
         tick: function (time, timeDelta) {
           if (!isRunning) return;
 
-          // 1. Update Score
+          this.warmupTime += timeDelta;
+
+          // 1. Update Score (Har frame badhega)
           score++;
-          if(score % 10 === 0) { // Update text every 10 frames to save performance
+          // Har 10 frame pe text update karo taaki load kam pade
+          if(score % 10 === 0) { 
              this.scoreEl.setAttribute('value', 'SCORE: ' + Math.floor(score / 10));
           }
 
           // 2. Spawn Obstacles
           this.timer += timeDelta;
-          // Har 1.5 second (1500ms) par naya obstacle
-          if (this.timer > 1500) {
+          if (this.timer > 1500) { // Har 1.5 second mein naya obstacle
             this.spawnObstacle();
             this.timer = 0;
-            // Speed badhao thoda sa
-            if (gameSpeed < 0.4) gameSpeed += 0.005; 
           }
 
-          // 3. Check Collisions
-          this.checkCollision();
+          // 3. Check Collisions (Sirf warmup ke baad)
+          if (this.warmupTime > 2000) {
+              this.checkCollision();
+          }
         },
 
         spawnObstacle: function() {
           const scene = this.el.sceneEl;
           const entity = document.createElement('a-box');
           
-          // Random X Position: -2 (Left), 0 (Center), 2 (Right)
-          const lane = Math.floor(Math.random() * 3) - 1; // Returns -1, 0, or 1
+          // Position: Left(-2), Center(0), Right(2)
+          const lane = Math.floor(Math.random() * 3) - 1; 
           const xPos = lane * 2; 
 
-          entity.setAttribute('position', {x: xPos, y: 1, z: -50}); // Spawn far away
+          // Door spawn karo (Z = -50)
+          entity.setAttribute('position', {x: xPos, y: 1, z: -50}); 
           entity.setAttribute('width', 1.5);
           entity.setAttribute('height', 2);
           entity.setAttribute('depth', 1.5);
-          entity.setAttribute('color', Math.random() > 0.5 ? '#ff0055' : '#00ccff'); // Neon Pink or Blue
-          entity.setAttribute('opacity', 0.9);
+          entity.setAttribute('material', {
+            color: Math.random() > 0.5 ? '#ff0055' : '#00ccff', 
+            opacity: 0.8, 
+            transparent: true
+          });
           
-          // Add glowing border
+          // Wireframe Glow border
           const wireframe = document.createElement('a-box');
           wireframe.setAttribute('material', 'wireframe: true; color: white');
           wireframe.setAttribute('width', 1.6);
@@ -67,25 +74,29 @@
           wireframe.setAttribute('depth', 1.6);
           entity.appendChild(wireframe);
 
-          // Add Movement Logic to the box
           entity.setAttribute('mover', '');
-          entity.classList.add('obstacle'); // Tag for collision
+          entity.classList.add('obstacle');
           
           scene.appendChild(entity);
         },
 
         checkCollision: function() {
           const player = document.querySelector('#camera');
-          const playerPos = player.object3D.position; // THREE.js vector is faster
+          const playerPos = player.object3D.position; 
           const obstacles = document.querySelectorAll('.obstacle');
 
           obstacles.forEach(obs => {
             const obsPos = obs.object3D.position;
             
-            // Check Z distance (Depth) - Jab wo paas aaye
-            if (obsPos.z > -2 && obsPos.z < 2) {
-              // Check X distance (Left/Right)
-              // Player thoda move karega, toh 0.8 ka gap rakha hai
+            // --- CRITICAL FIX ---
+            // Agar obstacle door hai (z < -3), toh ignore karo.
+            // Ye "Ghost Collision" hone hi nahi dega.
+            if (obsPos.z < -3) return; 
+            // --------------------
+
+            // Agar obstacle player ke paas hai (Z axis)
+            if (obsPos.z > -1.5 && obsPos.z < 1.5) {
+              // Aur agar same lane mein hai (X axis)
               if (Math.abs(obsPos.x - playerPos.x) < 0.8) {
                 this.gameOver();
               }
@@ -94,24 +105,23 @@
         },
 
         gameOver: function() {
-          console.log("CRASH!");
           isRunning = false;
           this.gameOverEl.setAttribute('visible', true);
           this.scoreEl.setAttribute('color', 'red');
+          // 2 sec baad reload
+          setTimeout(() => location.reload(), 2500);
         }
       });
 
-      // COMPONENT 2: MOVER (Moves the obstacles)
+      // Mover Component (Isme smooth movement hai)
       AFRAME.registerComponent('mover', {
         tick: function (time, timeDelta) {
           if (!isRunning) return;
-
           const currentPos = this.el.getAttribute('position');
-          // Move towards Z = 0
-          currentPos.z += gameSpeed * (timeDelta / 10); 
+          // Movement formula independent of frame rate
+          currentPos.z += gameSpeed * (timeDelta / 16); 
           this.el.setAttribute('position', currentPos);
 
-          // Agar player ke peeche chala gaya, toh delete karo (Memory save)
           if (currentPos.z > 5) {
             this.el.parentNode.removeChild(this.el);
           }
@@ -124,17 +134,13 @@
       <a-entity environment="preset: tron; grid: 1x1; gridColor: #222; groundColor: #111; skyType: atmosphere;"></a-entity>
 
       <a-entity id="rig" position="0 0 0">
-        <a-camera id="camera" position="0 1.6 0" look-controls wasd-controls="acceleration: 200">
+        <a-camera id="camera" position="0 1.6 0" look-controls wasd-controls>
           <a-text id="score-text" value="SCORE: 0" position="-0.8 0.8 -1.5" color="#fff" width="4"></a-text>
-          <a-text id="game-over-text" visible="false" value="GAME OVER\nReload to Restart" position="-1.2 0 -1.5" color="#ff0000" width="6"></a-text>
-          
-          <a-cursor color="yellow" scale="0.5 0.5 0.5"></a-cursor>
+          <a-text id="game-over-text" visible="false" value="CRASHED!\nRetrying..." position="-0.9 0 -1.5" color="#ff0000" width="6"></a-text>
         </a-camera>
-        
         <a-entity laser-controls="hand: left"></a-entity>
         <a-entity laser-controls="hand: right"></a-entity>
       </a-entity>
-
     </a-scene>
   </body>
 </html>
