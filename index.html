@@ -8,12 +8,10 @@
   </head>
   <body>
     <script>
-      // GLOBAL VARIABLES
       let isGameOver = false;
       let score = 0;
-      let speed = 0.15; // Speed of obstacles
+      let speed = 0.15;
 
-      // COMPONENT: GAME LOOP & SPAWNER
       AFRAME.registerComponent('game-manager', {
         init: function () {
           this.timeElapsed = 0;
@@ -23,20 +21,16 @@
         tick: function (time, timeDelta) {
           if (isGameOver) return;
 
-          // Update Score
           score += 1;
           this.scoreText.setAttribute('value', 'Score: ' + Math.floor(score / 10));
 
-          // Spawn Obstacles every 1 second (approx)
           this.timeElapsed += timeDelta;
           if (this.timeElapsed > 1000) { 
             this.spawnObstacle();
             this.timeElapsed = 0;
-            // Dheere dheere speed badhao
-            speed += 0.001;
+            speed += 0.002; // Thoda aur challenge badhaya
           }
 
-          // Check Collisions
           this.checkCollisions();
         },
 
@@ -44,20 +38,17 @@
           const scene = document.querySelector('a-scene');
           const obstacle = document.createElement('a-box');
           
-          // Random Position (X: -3 to 3)
-          const randomX = (Math.random() * 6) - 3;
+          // Random Position (X: -2.5 to 2.5) - Thoda range kam kiya taaki reach mein rahe
+          const randomX = (Math.random() * 5) - 2.5;
           
-          // Styling the Obstacle (Neon Pink/Blue)
-          const color = Math.random() > 0.5 ? '#FF00FF' : '#00FFFF';
-          
-          obstacle.setAttribute('position', {x: randomX, y: 1, z: -25}); // Start far away
+          // Set Position IMMEDIATELY
+          obstacle.setAttribute('position', {x: randomX, y: 1, z: -30}); 
           obstacle.setAttribute('width', 1);
           obstacle.setAttribute('height', 2);
           obstacle.setAttribute('depth', 1);
-          obstacle.setAttribute('material', {color: color, opacity: 0.8, transparent: true});
-          obstacle.setAttribute('shadow', {receive: true});
+          obstacle.setAttribute('material', {color: Math.random() > 0.5 ? '#FF00FF' : '#00FFFF', opacity: 0.8, transparent: true});
           
-          // Add glowing border effect using wireframe
+          // Wireframe Glow
           const glow = document.createElement('a-box');
           glow.setAttribute('width', 1.1);
           glow.setAttribute('height', 2.1);
@@ -65,9 +56,8 @@
           glow.setAttribute('material', {wireframe: true, color: 'white'});
           obstacle.appendChild(glow);
 
-          // Add movement component
           obstacle.setAttribute('move-obstacle', '');
-          obstacle.classList.add('obstacle'); // For collision check
+          obstacle.classList.add('obstacle');
           
           scene.appendChild(obstacle);
         },
@@ -78,13 +68,19 @@
           const playerPos = player.getAttribute('position');
 
           obstacles.forEach(obs => {
+            // FIX: Agar obstacle abhi load nahi hua, toh ignore karo
+            if (!obs.hasLoaded) return;
+
             const obsPos = obs.getAttribute('position');
-            // Simple Distance Check
+            
+            // X aur Z distance check
             const dx = playerPos.x - obsPos.x;
             const dz = playerPos.z - obsPos.z;
             const distance = Math.sqrt(dx*dx + dz*dz);
 
-            if (distance < 1 && obsPos.z > -1 && obsPos.z < 1) {
+            // FIX: Distance < 0.6 kar diya (Hitbox chhota kiya)
+            // Aur check kiya ki obstacle sach mein paas hai (z > -2)
+            if (distance < 0.6 && obsPos.z > -1 && obsPos.z < 1) {
               this.gameOver();
             }
           });
@@ -94,19 +90,19 @@
           isGameOver = true;
           this.gameOverText.setAttribute('visible', true);
           this.scoreText.setAttribute('color', 'red');
+          // Restart logic: 3 second baad reload
+          setTimeout(() => {
+             location.reload();
+          }, 3000);
         }
       });
 
-      // COMPONENT: MOVE OBSTACLES
       AFRAME.registerComponent('move-obstacle', {
         tick: function () {
           if (isGameOver) return;
-          
           let pos = this.el.getAttribute('position');
-          pos.z += speed; // Move towards player
+          pos.z += speed; 
           this.el.setAttribute('position', pos);
-
-          // Cleanup: Remove if it passes the player
           if (pos.z > 5) {
             this.el.parentNode.removeChild(this.el);
           }
@@ -115,7 +111,6 @@
     </script>
 
     <a-scene game-manager background="color: #000">
-      
       <a-entity environment="preset: tron; grid: 1x1; dressingAmount: 0; skyType: atmosphere; groundColor: #000; gridColor: #FF00FF"></a-entity>
 
       <a-light type="ambient" color="#222"></a-light>
@@ -124,13 +119,11 @@
       <a-entity id="rig" position="0 0 0">
         <a-camera id="camera" wasd-controls-enabled="false" look-controls>
           <a-text id="score" value="Score: 0" position="-0.5 0.5 -1" color="white" width="3"></a-text>
-          <a-text id="game-over" value="GAME OVER\nReload to Restart" visible="false" position="-0.8 0 -1" color="red" width="4" align="center"></a-text>
+          <a-text id="game-over" value="CRASHED!\nRestarting..." visible="false" position="-0.7 0 -1" color="red" width="4" align="center"></a-text>
         </a-camera>
-        
         <a-entity laser-controls="hand: left"></a-entity>
         <a-entity laser-controls="hand: right"></a-entity>
       </a-entity>
-
     </a-scene>
   </body>
 </html>
