@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Neon-Verse VR Runner</title>
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://unpkg.com/aframe-environment-component@1.3.3/dist/aframe-environment-component.min.js"></script>
+  </head>
+  <body>
+    <script>
+      // GLOBAL VARIABLES
+      let isGameOver = false;
+      let score = 0;
+      let speed = 0.15; // Speed of obstacles
+
+      // COMPONENT: GAME LOOP & SPAWNER
+      AFRAME.registerComponent('game-manager', {
+        init: function () {
+          this.timeElapsed = 0;
+          this.scoreText = document.querySelector('#score');
+          this.gameOverText = document.querySelector('#game-over');
+        },
+        tick: function (time, timeDelta) {
+          if (isGameOver) return;
+
+          // Update Score
+          score += 1;
+          this.scoreText.setAttribute('value', 'Score: ' + Math.floor(score / 10));
+
+          // Spawn Obstacles every 1 second (approx)
+          this.timeElapsed += timeDelta;
+          if (this.timeElapsed > 1000) { 
+            this.spawnObstacle();
+            this.timeElapsed = 0;
+            // Dheere dheere speed badhao
+            speed += 0.001;
+          }
+
+          // Check Collisions
+          this.checkCollisions();
+        },
+
+        spawnObstacle: function () {
+          const scene = document.querySelector('a-scene');
+          const obstacle = document.createElement('a-box');
+          
+          // Random Position (X: -3 to 3)
+          const randomX = (Math.random() * 6) - 3;
+          
+          // Styling the Obstacle (Neon Pink/Blue)
+          const color = Math.random() > 0.5 ? '#FF00FF' : '#00FFFF';
+          
+          obstacle.setAttribute('position', {x: randomX, y: 1, z: -25}); // Start far away
+          obstacle.setAttribute('width', 1);
+          obstacle.setAttribute('height', 2);
+          obstacle.setAttribute('depth', 1);
+          obstacle.setAttribute('material', {color: color, opacity: 0.8, transparent: true});
+          obstacle.setAttribute('shadow', {receive: true});
+          
+          // Add glowing border effect using wireframe
+          const glow = document.createElement('a-box');
+          glow.setAttribute('width', 1.1);
+          glow.setAttribute('height', 2.1);
+          glow.setAttribute('depth', 1.1);
+          glow.setAttribute('material', {wireframe: true, color: 'white'});
+          obstacle.appendChild(glow);
+
+          // Add movement component
+          obstacle.setAttribute('move-obstacle', '');
+          obstacle.classList.add('obstacle'); // For collision check
+          
+          scene.appendChild(obstacle);
+        },
+
+        checkCollisions: function() {
+          const player = document.querySelector('#camera');
+          const obstacles = document.querySelectorAll('.obstacle');
+          const playerPos = player.getAttribute('position');
+
+          obstacles.forEach(obs => {
+            const obsPos = obs.getAttribute('position');
+            // Simple Distance Check
+            const dx = playerPos.x - obsPos.x;
+            const dz = playerPos.z - obsPos.z;
+            const distance = Math.sqrt(dx*dx + dz*dz);
+
+            if (distance < 1 && obsPos.z > -1 && obsPos.z < 1) {
+              this.gameOver();
+            }
+          });
+        },
+
+        gameOver: function() {
+          isGameOver = true;
+          this.gameOverText.setAttribute('visible', true);
+          this.scoreText.setAttribute('color', 'red');
+        }
+      });
+
+      // COMPONENT: MOVE OBSTACLES
+      AFRAME.registerComponent('move-obstacle', {
+        tick: function () {
+          if (isGameOver) return;
+          
+          let pos = this.el.getAttribute('position');
+          pos.z += speed; // Move towards player
+          this.el.setAttribute('position', pos);
+
+          // Cleanup: Remove if it passes the player
+          if (pos.z > 5) {
+            this.el.parentNode.removeChild(this.el);
+          }
+        }
+      });
+    </script>
+
+    <a-scene game-manager background="color: #000">
+      
+      <a-entity environment="preset: tron; grid: 1x1; dressingAmount: 0; skyType: atmosphere; groundColor: #000; gridColor: #FF00FF"></a-entity>
+
+      <a-light type="ambient" color="#222"></a-light>
+      <a-light type="point" intensity="1" position="0 4 4" color="#00ffff"></a-light>
+
+      <a-entity id="rig" position="0 0 0">
+        <a-camera id="camera" wasd-controls-enabled="false" look-controls>
+          <a-text id="score" value="Score: 0" position="-0.5 0.5 -1" color="white" width="3"></a-text>
+          <a-text id="game-over" value="GAME OVER\nReload to Restart" visible="false" position="-0.8 0 -1" color="red" width="4" align="center"></a-text>
+        </a-camera>
+        
+        <a-entity laser-controls="hand: left"></a-entity>
+        <a-entity laser-controls="hand: right"></a-entity>
+      </a-entity>
+
+    </a-scene>
+  </body>
+</html>
